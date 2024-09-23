@@ -1,13 +1,16 @@
 import os
-import openai
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv, find_dotenv
+from groq import Groq  # Import the Groq library for API interaction
 
-# Load the OpenAI API key from the .env file
+# Load environment variables from the .env file
 load_dotenv(find_dotenv())
-openai.api_key = os.getenv('OPENAI_API_KEY')
+groq_api_key = os.getenv('GROQ_API_KEY')  # Get Groq API key
+
+# Initialize the Groq client
+llm = Groq(model="llama3-70b-8192", api_key=groq_api_key)
 
 def get_transcript(youtube_url):
     video_id = youtube_url.split("v=")[-1]
@@ -30,12 +33,11 @@ def get_transcript(youtube_url):
     full_transcript = " ".join([part['text'] for part in transcript.fetch()])
     return full_transcript, language_code  # Return both the transcript and detected language
 
-
-def summarize_with_langchain_and_openai(transcript, language_code, model_name='gpt-3.5-turbo'):
+def summarize_with_langchain_and_groq(transcript, language_code):
     # Split the document if it's too long
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=0)
     texts = text_splitter.split_text(transcript)
-    text_to_summarize = " ".join(texts[:4]) # Adjust this as needed
+    text_to_summarize = " ".join(texts[:4])  # Adjust this as needed
 
     # Prepare the prompt for summarization
     system_prompt = 'I want you to act as a Life Coach that can create good summaries!'
@@ -45,20 +47,12 @@ def summarize_with_langchain_and_openai(transcript, language_code, model_name='g
     Add a title to the summary in {language_code}. 
     Include an INTRODUCTION, BULLET POINTS if possible, and a CONCLUSION in {language_code}.'''
 
-    # Start summarizing using OpenAI
-    response = openai.ChatCompletion.create(
-        model=model_name,
-        messages=[
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': prompt}
-        ],
-        temperature=1
-    )
-    
-    return response['choices'][0]['message']['content']
+    # Start summarizing using Groq
+    response = llm.complete(prompt)
+    return response.text.strip()
 
 def main():
-    link = st.text_input('Enter the Youtube link to structure the data:')
+    link = st.text_input('Enter the YouTube link to structure the data:')
 
     if st.button('Start'):
         if link:
@@ -75,8 +69,7 @@ def main():
                 status_text.text(f'Creating summary...')
                 progress.progress(75)
 
-                model_name = 'gpt-3.5-turbo'
-                summary = summarize_with_langchain_and_openai(transcript, language_code, model_name)
+                summary = summarize_with_langchain_and_groq(transcript, language_code)
 
                 status_text.text('Summary:')
                 st.markdown(summary)
