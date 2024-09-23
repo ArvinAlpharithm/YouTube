@@ -3,7 +3,11 @@ import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv, find_dotenv
-from groq import Groq  # Import the Groq library for API interaction
+from llama_index.llms.groq import Groq  # Import Groq library
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables from the .env file
 load_dotenv(find_dotenv())
@@ -33,14 +37,13 @@ def get_transcript(youtube_url):
     full_transcript = " ".join([part['text'] for part in transcript.fetch()])
     return full_transcript, language_code  # Return both the transcript and detected language
 
-def summarize_with_langchain_and_groq(transcript, language_code):
+def summarize_with_groq(transcript, language_code):
     # Split the document if it's too long
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=0)
     texts = text_splitter.split_text(transcript)
     text_to_summarize = " ".join(texts[:4])  # Adjust this as needed
 
     # Prepare the prompt for summarization
-    system_prompt = 'I want you to act as a Life Coach that can create good summaries!'
     prompt = f'''Summarize the following text in {language_code}.
     Text: {text_to_summarize}
 
@@ -48,10 +51,13 @@ def summarize_with_langchain_and_groq(transcript, language_code):
     Include an INTRODUCTION, BULLET POINTS if possible, and a CONCLUSION in {language_code}.'''
 
     # Start summarizing using Groq
+    logging.info(f"Prompt sent to Groq: {prompt}")
     response = llm.complete(prompt)
     return response.text.strip()
 
 def main():
+    st.title("YouTube Video Summarizer")
+    
     link = st.text_input('Enter the YouTube link to structure the data:')
 
     if st.button('Start'):
@@ -69,7 +75,7 @@ def main():
                 status_text.text(f'Creating summary...')
                 progress.progress(75)
 
-                summary = summarize_with_langchain_and_groq(transcript, language_code)
+                summary = summarize_with_groq(transcript, language_code)
 
                 status_text.text('Summary:')
                 st.markdown(summary)
